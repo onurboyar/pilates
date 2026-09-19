@@ -22,7 +22,7 @@ st.set_page_config(
 
 CSV_PATH = (
     Path(__file__).parent
-    / "japanese_anatomy_candidates_enriched.csv"
+    / "japanese_anatomy_candidates_enriched_vi.csv"
 )
 
 
@@ -35,7 +35,7 @@ def load_cards():
 
     if not CSV_PATH.exists():
         raise FileNotFoundError(
-            f"Could not find:\n{CSV_PATH}"
+            f"Could not find CSV file:\n{CSV_PATH}"
         )
 
     df = pd.read_csv(CSV_PATH)
@@ -44,6 +44,8 @@ def load_cards():
         "word",
         "reading",
         "english_meaning",
+        "vietnamese_meaning",
+        "vietnamese_explanation",
     ]
 
     missing = [
@@ -61,11 +63,13 @@ def load_cards():
     # Replace NaN values with empty strings
     df = df.fillna("")
 
-    # Normalize text
+    # Clean text columns
     text_columns = [
         "word",
         "reading",
         "english_meaning",
+        "vietnamese_meaning",
+        "vietnamese_explanation",
         "source",
         "notes",
     ]
@@ -79,15 +83,14 @@ def load_cards():
                 .str.strip()
             )
 
-    # Remove completely empty words
+    # Remove empty rows
     df = df[
         df["word"] != ""
     ].copy()
 
-    # Reset index
     df = df.reset_index(drop=True)
 
-    # Unique internal card ID
+    # Internal card ID
     df["card_id"] = range(len(df))
 
     return df
@@ -103,7 +106,6 @@ except Exception as e:
     st.stop()
 
 
-# Convert dataframe into dictionaries
 CARDS = df.to_dict("records")
 
 
@@ -189,10 +191,7 @@ def next_card(active_ids):
 
     st.session_state.position += 1
 
-    if (
-        st.session_state.position
-        >= len(active_ids)
-    ):
+    if st.session_state.position >= len(active_ids):
         st.session_state.position = 0
 
     st.session_state.show_answer = False
@@ -206,9 +205,7 @@ def previous_card(active_ids):
     st.session_state.position -= 1
 
     if st.session_state.position < 0:
-        st.session_state.position = (
-            len(active_ids) - 1
-        )
+        st.session_state.position = len(active_ids) - 1
 
     st.session_state.show_answer = False
 
@@ -253,14 +250,14 @@ def rate_card(
 
 
 # ============================================================
-# TITLE
+# HEADER
 # ============================================================
 
 st.title("🫀 Japanese Anatomy Cards")
 
 st.write(
-    "Study Japanese anatomy vocabulary "
-    "from your anatomy CSV."
+    "Learn Japanese anatomy vocabulary "
+    "with English and Vietnamese explanations."
 )
 
 
@@ -271,9 +268,9 @@ st.write(
 st.sidebar.header("Study settings")
 
 
-# ------------------------------------------------------------
+# ============================================================
 # SOURCE FILTER
-# ------------------------------------------------------------
+# ============================================================
 
 if "source" in df.columns:
 
@@ -305,12 +302,22 @@ else:
     selected_sources = []
 
 
-# ------------------------------------------------------------
+# ============================================================
 # DISPLAY SETTINGS
-# ------------------------------------------------------------
+# ============================================================
 
 show_reading = st.sidebar.toggle(
-    "Show reading after reveal",
+    "Show reading",
+    value=True,
+)
+
+show_english = st.sidebar.toggle(
+    "Show English",
+    value=True,
+)
+
+show_vietnamese = st.sidebar.toggle(
+    "Show Vietnamese",
     value=True,
 )
 
@@ -333,6 +340,7 @@ st.sidebar.divider()
 # ============================================================
 
 active_ids = []
+
 
 for card_id in st.session_state.order:
 
@@ -381,14 +389,16 @@ card = CARDS[current_id]
 
 learned_active = len(
     [
-        x
-        for x in active_ids
-        if x in st.session_state.learned
+        card_id
+        for card_id in active_ids
+        if card_id in st.session_state.learned
     ]
 )
 
 
-st.sidebar.subheader("Progress")
+st.sidebar.subheader(
+    "Progress"
+)
 
 
 st.sidebar.metric(
@@ -409,16 +419,10 @@ st.sidebar.metric(
 )
 
 
-if active_ids:
-
-    progress = (
-        learned_active
-        / len(active_ids)
-    )
-
-else:
-
-    progress = 0
+progress = (
+    learned_active
+    / len(active_ids)
+)
 
 
 st.sidebar.progress(
@@ -488,9 +492,9 @@ with st.container(
     border=True
 ):
 
-    # --------------------------------------------------------
+    # ========================================================
     # FRONT
-    # --------------------------------------------------------
+    # ========================================================
 
     if not st.session_state.show_answer:
 
@@ -517,9 +521,9 @@ with st.container(
             st.rerun()
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # BACK
-    # --------------------------------------------------------
+    # ========================================================
 
     else:
 
@@ -527,6 +531,10 @@ with st.container(
             card["word"]
         )
 
+
+        # ----------------------------------------------------
+        # JAPANESE READING
+        # ----------------------------------------------------
 
         if (
             show_reading
@@ -538,32 +546,85 @@ with st.container(
             )
 
 
-        st.divider()
+        # ----------------------------------------------------
+        # ENGLISH
+        # ----------------------------------------------------
 
+        if show_english:
 
-        # English
-        st.subheader(
-            "🇬🇧 English"
-        )
+            st.divider()
 
-
-        if card.get(
-            "english_meaning",
-            ""
-        ):
-
-            st.write(
-                card[
-                    "english_meaning"
-                ]
+            st.subheader(
+                "🇬🇧 English"
             )
 
-        else:
+            if card.get(
+                "english_meaning",
+                ""
+            ):
 
-            st.warning(
-                "No English meaning "
-                "was found for this word."
+                st.write(
+                    card[
+                        "english_meaning"
+                    ]
+                )
+
+            else:
+
+                st.caption(
+                    "No English meaning available."
+                )
+
+
+        # ----------------------------------------------------
+        # VIETNAMESE
+        # ----------------------------------------------------
+
+        if show_vietnamese:
+
+            st.divider()
+
+            st.subheader(
+                "🇻🇳 Tiếng Việt"
             )
+
+            vietnamese_meaning = (
+                card.get(
+                    "vietnamese_meaning",
+                    ""
+                )
+            )
+
+            vietnamese_explanation = (
+                card.get(
+                    "vietnamese_explanation",
+                    ""
+                )
+            )
+
+
+            if vietnamese_meaning:
+
+                st.markdown(
+                    f"### {vietnamese_meaning}"
+                )
+
+
+            if vietnamese_explanation:
+
+                st.write(
+                    vietnamese_explanation
+                )
+
+
+            if (
+                not vietnamese_meaning
+                and not vietnamese_explanation
+            ):
+
+                st.caption(
+                    "Không có giải thích tiếng Việt."
+                )
 
 
         # ----------------------------------------------------
@@ -602,6 +663,7 @@ with st.container(
                 ""
             )
 
+
             if source:
 
                 st.divider()
@@ -609,6 +671,7 @@ with st.container(
                 st.caption(
                     f"Source: {source}"
                 )
+
 
                 if str(page).strip():
 
@@ -759,7 +822,7 @@ with nav3:
 
 
 # ============================================================
-# STATISTICS
+# STUDY STATISTICS
 # ============================================================
 
 with st.expander(
@@ -819,7 +882,7 @@ with st.expander(
 
 
 # ============================================================
-# BROWSE VOCABULARY
+# VOCABULARY BROWSER
 # ============================================================
 
 with st.expander(
@@ -827,8 +890,7 @@ with st.expander(
 ):
 
     search = st.text_input(
-        "Search Japanese, reading, "
-        "English meaning, or notes"
+        "Search Japanese, reading, English, Vietnamese, or notes"
     )
 
 
@@ -861,6 +923,18 @@ with st.expander(
                 str(
                     item.get(
                         "english_meaning",
+                        ""
+                    )
+                ),
+                str(
+                    item.get(
+                        "vietnamese_meaning",
+                        ""
+                    )
+                ),
+                str(
+                    item.get(
+                        "vietnamese_explanation",
                         ""
                     )
                 ),
@@ -914,6 +988,7 @@ with st.expander(
             )
 
 
+            # Japanese reading
             if item.get(
                 "reading",
                 ""
@@ -925,17 +1000,44 @@ with st.expander(
                 )
 
 
+            # English
             if item.get(
                 "english_meaning",
                 ""
             ):
 
                 st.write(
-                    f"🇬🇧 "
+                    "🇬🇧 "
                     f"**{item['english_meaning']}**"
                 )
 
 
+            # Vietnamese meaning
+            if item.get(
+                "vietnamese_meaning",
+                ""
+            ):
+
+                st.write(
+                    "🇻🇳 "
+                    f"**{item['vietnamese_meaning']}**"
+                )
+
+
+            # Vietnamese explanation
+            if item.get(
+                "vietnamese_explanation",
+                ""
+            ):
+
+                st.write(
+                    item[
+                        "vietnamese_explanation"
+                    ]
+                )
+
+
+            # Notes
             if item.get(
                 "notes",
                 ""
@@ -947,6 +1049,7 @@ with st.expander(
                 )
 
 
+            # Source
             source = item.get(
                 "source",
                 ""
